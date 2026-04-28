@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#000000" />
+  <title>Trip Tracker Black Box</title>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <style>
+    :root {
+      --bg: #000000;
+      --card: #0f0f10;
+      --card-soft: #111113;
+      --accent: #ff3b30;
+      --accent-soft: rgba(255, 59, 48, 0.2);
+      --text: #f5f5f7;
+      --muted: #9a9aa1;
+      --ok: #32d74b;
+      --warn: #ffd60a;
+      --danger: #ff453a;
+      --ring: 0 0 22px rgba(255, 59, 48, 0.45);
+      --radius-xl: 26px;
+      --radius-lg: 18px;
+      --radius-md: 14px;
+      --shadow-soft: 0 16px 40px rgba(0, 0, 0, 0.55);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    body {
+      display: flex;
+      justify-content: center;
+      overflow: hidden;
+      padding: env(safe-area-inset-top) 10px env(safe-area-inset-bottom);
+      background:
+        radial-gradient(circle at 50% 28%, rgba(255, 59, 48, 0.25), transparent 35%),
+        radial-gradient(circle at 50% 60%, rgba(255, 0, 0, 0.08), transparent 42%),
+        #000;
+    }
+
+    .app {
+      width: min(100vw, 520px);
+      height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+      max-height: 100vh;
+      display: grid;
+      grid-template-rows: auto auto auto 1fr auto;
+      gap: 10px;
+      padding: 8px 6px 12px;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .btn {
+      border: 1px solid rgba(255,255,255,0.08);
+      background: linear-gradient(160deg, #19191b, #0c0c0d);
+      color: #f4f4f6;
+      border-radius: 12px;
+      padding: 10px 6px;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+      box-shadow: 0 5px 14px rgba(0,0,0,0.35);
+    }
+
+    .btn:active { transform: translateY(1px) scale(0.99); }
+    .btn.active { border-color: rgba(255, 69, 58, 0.8); box-shadow: var(--ring); }
+
+    .speed-wrap {
+      border-radius: var(--radius-xl);
+      background: linear-gradient(165deg, rgba(35,35,38,0.85), rgba(8,8,9,0.96));
+      border: 1px solid rgba(255,255,255,0.06);
+      box-shadow: var(--shadow-soft);
+      padding: 14px 14px 8px;
+      text-align: center;
+    }
+
+    .mini-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    .speed {
+      margin: 2px 0 0;
+      font-size: clamp(92px, 24vw, 138px);
+      line-height: 0.9;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      color: #fff;
+      text-shadow:
+        0 0 10px rgba(255,255,255,0.4),
+        0 0 26px rgba(255,59,48,0.65),
+        0 0 70px rgba(255,59,48,0.35);
+      font-family: "Arial Black", Inter, system-ui, sans-serif;
+    }
+
+    .unit {
+      margin-top: 2px;
+      font-size: 30px;
+      color: #ffd9d6;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-shadow: 0 0 14px rgba(255, 59, 48, 0.4);
+    }
+
+    .stats {
+      background: linear-gradient(160deg, #120d0d, #090909);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: var(--radius-xl);
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      padding: 12px;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .stat {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 12px;
+      padding: 10px;
+      min-height: 70px;
+    }
+
+    .label { color: #ff6d66; font-size: 12px; font-weight: 700; }
+    .value { margin-top: 4px; font-size: 22px; font-weight: 700; }
+    .value.sm { font-size: 18px; }
+
+    .map-panel {
+      position: relative;
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: var(--shadow-soft);
+      min-height: 200px;
+      background: #050506;
+    }
+
+    #map { width: 100%; height: 100%; min-height: 230px; }
+
+    .hud {
+      position: absolute;
+      inset: auto 8px 8px 8px;
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .hud::-webkit-scrollbar { display: none; }
+
+    .chip {
+      flex: 0 0 auto;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+      background: rgba(0,0,0,0.72);
+      border: 1px solid rgba(255,255,255,0.14);
+      backdrop-filter: blur(8px);
+    }
+
+    .log-panel {
+      background: linear-gradient(180deg, #0d0d0f, #070708);
+      border-radius: var(--radius-lg);
+      border: 1px solid rgba(255,255,255,0.08);
+      min-height: 90px;
+      max-height: 160px;
+      overflow: auto;
+      padding: 8px;
+      font-family: ui-monospace, Menlo, Consolas, monospace;
+      font-size: 11px;
+      line-height: 1.45;
+      color: #d6d6db;
+    }
+
+    .log-entry { margin-bottom: 4px; }
+    .log-entry.stop { color: #ffd166; }
+    .log-entry.resume { color: #7ef29b; }
+    .log-entry.minute { color: #c9d7ff; }
+
+    .footer {
+      display: grid;
+      grid-template-columns: 1fr 80px 1fr;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .big-start {
+      width: 80px;
+      height: 80px;
+      border-radius: 999px;
+      border: 2px solid rgba(255,255,255,0.5);
+      background: radial-gradient(circle at 32% 30%, #2a2a2f, #0c0c0d 58%, #030303 100%);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      box-shadow: 0 0 0 3px rgba(255,255,255,0.14), 0 14px 22px rgba(0,0,0,0.6);
+      justify-self: center;
+    }
+
+    .status {
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.03);
+      font-size: 11px;
+      color: #dadbe3;
+    }
+
+    .dot { width: 8px; height: 8px; border-radius: 999px; background: var(--warn); }
+    .dot.live { background: var(--ok); box-shadow: 0 0 10px rgba(50,215,75,0.7); }
+
+    .notice {
+      position: fixed;
+      left: 50%;
+      bottom: calc(env(safe-area-inset-bottom) + 12px);
+      transform: translateX(-50%);
+      background: rgba(14,14,16,0.9);
+      border: 1px solid rgba(255,255,255,0.14);
+      color: #f7f7f9;
+      padding: 8px 12px;
+      border-radius: 10px;
+      font-size: 12px;
+      opacity: 0;
+      transition: opacity .25s ease;
+      pointer-events: none;
+      z-index: 9999;
+      max-width: 92vw;
+      text-align: center;
+      backdrop-filter: blur(8px);
+    }
+
+    .notice.show { opacity: 1; }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="topbar">
+      <button class="btn" id="btnFullscreen">⛶ Full</button>
+      <button class="btn" id="btnWake">⚡ Wake</button>
+      <button class="btn" id="btnSound">🔊 Sound</button>
+      <button class="btn" id="btnTheme">🌙 AMOLED</button>
+      <button class="btn" id="btnCenter">📍 Center</button>
+      <button class="btn" id="btnExport">⬇ Export</button>
+    </section>
+
+    <section class="speed-wrap">
+      <div class="mini-row">
+        <span id="tripClock">00:00:00</span>
+        <span id="gpsBadge" class="pill"><span class="dot" id="gpsDot"></span> GPS: idle</span>
+      </div>
+      <div class="speed" id="speedDisplay">0</div>
+      <div class="unit">KM/H</div>
+    </section>
+
+    <section class="stats">
+      <article class="stat"><div class="label">Distance</div><div class="value" id="distanceValue">0.00 km</div></article>
+      <article class="stat"><div class="label">Average</div><div class="value" id="avgValue">0.0 km/h</div></article>
+      <article class="stat"><div class="label">Duration</div><div class="value sm" id="durationValue">00:00:00</div></article>
+      <article class="stat"><div class="label">Top Speed</div><div class="value" id="topValue">0.0 km/h</div></article>
+    </section>
+
+    <section class="map-panel">
+      <div id="map"></div>
+      <div class="hud">
+        <span class="chip" id="coordChip">Lat: --, Lng: --</span>
+        <span class="chip" id="accuracyChip">Accuracy: --</span>
+        <span class="chip" id="logChip">Minute logs: 0</span>
+      </div>
+    </section>
+
+    <section class="log-panel" id="eventLog" aria-live="polite"></section>
+
+    <section class="footer">
+      <div class="status" id="leftStatus">Ready</div>
+      <button class="big-start" id="btnStartStop">START</button>
+      <div class="status" id="rightStatus">Black Box v1.0</div>
+    </section>
+  </main>
+
+  <div class="notice" id="notice"></div>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <script>
+    (() => {
+      const STORAGE_KEY = "tripTracker_v2";
+      const STOP_THRESHOLD_KMH = 1;
+
+      const els = {
+        btnFullscreen: document.getElementById("btnFullscreen"),
+        btnWake: document.getElementById("btnWake"),
+        btnSound: document.getElementById("btnSound"),
+        btnTheme: document.getElementById("btnTheme"),
+        btnCenter: document.getElementById("btnCenter"),
+        btnExport: document.getElementById("btnExport"),
+        btnStartStop: document.getElementById("btnStartStop"),
+        speedDisplay: document.getElementById("speedDisplay"),
+        distanceValue: document.getElementById("distanceValue"),
+        avgValue: document.getElementById("avgValue"),
+        topValue: document.getElementById("topValue"),
+        durationValue: document.getElementById("durationValue"),
+        tripClock: document.getElementById("tripClock"),
+        coordChip: document.getElementById("coordChip"),
+        accuracyChip: document.getElementById("accuracyChip"),
+        logChip: document.getElementById("logChip"),
+        eventLog: document.getElementById("eventLog"),
+        gpsBadge: document.getElementById("gpsBadge"),
+        gpsDot: document.getElementById("gpsDot"),
+        notice: document.getElementById("notice"),
+        leftStatus: document.getElementById("leftStatus"),
+        rightStatus: document.getElementById("rightStatus")
+      };
+
+      const state = {
+        tracking: false,
+        watchId: null,
+        minuteTimer: null,
+        startedAt: null,
+        endedAt: null,
+        currentSpeedKmh: 0,
+        topSpeedKmh: 0,
+        totalDistanceKm: 0,
+        totalMovingSpeed: 0,
+        movingSamples: 0,
+        points: [],
+        minuteLogs: [],
+        events: [],
+        isStopped: false,
+        wakeLock: null,
+        wakeLockEnabled: false,
+        soundEnabled: false,
+        darkMapEnabled: true,
+        lastLocation: null,
+        mapFollow: true,
+      };
+
+      let map, lightTile, darkTile, routeLine, marker;
+      let uiTicker = null;
+
+      const audio = {
+        ctx: null,
+        master: null,
+        humOsc: null,
+        humGain: null,
+        pulseTimer: null,
+      };
+
+      function toast(message) {
+        els.notice.textContent = message;
+        els.notice.classList.add("show");
+        clearTimeout(toast._t);
+        toast._t = setTimeout(() => els.notice.classList.remove("show"), 2200);
+      }
+
+      function formatTime(ms) {
+        const s = Math.max(0, Math.floor(ms / 1000));
+        const hh = String(Math.floor(s / 3600)).padStart(2, "0");
+        const mm = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
+        const ss = String(s % 60).padStart(2, "0");
+        return `${hh}:${mm}:${ss}`;
+      }
+
+      function formatDate(ts) {
+        return new Date(ts).toLocaleString(undefined, {
+          year: "numeric", month: "short", day: "2-digit",
+          hour: "2-digit", minute: "2-digit", second: "2-digit"
+        });
+      }
+
+      function haversineKm(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a =
+          Math.sin(dLat / 2) ** 2 +
+          Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+          Math.sin(dLon / 2) ** 2;
+        return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+      }
+
+      function persist() {
+        const payload = {
+          ...state,
+          watchId: null,
+          minuteTimer: null,
+          wakeLock: null,
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+      }
+
+      function restore() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return;
+          const data = JSON.parse(raw);
+          Object.assign(state, {
+            tracking: false,
+            watchId: null,
+            minuteTimer: null,
+            wakeLock: null,
+          }, data);
+          state.tracking = false;
+          renderLog();
+          if (state.points.length > 0) {
+            const latlngs = state.points.map(p => [p.lat, p.lng]);
+            routeLine.setLatLngs(latlngs);
+            const last = state.points[state.points.length - 1];
+            marker.setLatLng([last.lat, last.lng]);
+            map.setView([last.lat, last.lng], 16);
+            state.lastLocation = last;
+          }
+          setMapTheme(state.darkMapEnabled);
+          updateUI();
+          toast("Previous trip data restored.");
+        } catch {
+          toast("Could not restore old data.");
+        }
+      }
+
+      function addEvent(type, details, lat = null, lng = null, speedKmh = null) {
+        state.events.push({
+          type,
+          details,
+          lat,
+          lng,
+          speedKmh,
+          timestamp: Date.now(),
+        });
+        renderLog();
+        persist();
+      }
+
+      function addMinuteLog() {
+        if (!state.lastLocation) return;
+        const entry = {
+          timestamp: Date.now(),
+          lat: state.lastLocation.lat,
+          lng: state.lastLocation.lng,
+          speedKmh: Number(state.currentSpeedKmh.toFixed(2)),
+          totalDistanceKm: Number(state.totalDistanceKm.toFixed(4)),
+          note: state.isStopped ? "STOPPED" : "MOVING",
+        };
+        state.minuteLogs.push(entry);
+        renderLog();
+        persist();
+      }
+
+      function renderLog() {
+        const combined = [
+          ...state.events.map(e => ({ ...e, kind: "event" })),
+          ...state.minuteLogs.map(m => ({ ...m, kind: "minute", type: "MINUTE" })),
+        ].sort((a, b) => a.timestamp - b.timestamp);
+
+        if (!combined.length) {
+          els.eventLog.innerHTML = `<div class="log-entry">No logs yet. Press START.</div>`;
+          els.logChip.textContent = `Minute logs: 0`;
+          return;
+        }
+
+        els.eventLog.innerHTML = combined.slice(-120).map(item => {
+          const cls = item.kind === "minute"
+            ? "minute"
+            : item.type === "STOP"
+              ? "stop"
+              : item.type === "RESUME"
+                ? "resume"
+                : "";
+
+          if (item.kind === "minute") {
+            return `<div class="log-entry ${cls}">[${formatDate(item.timestamp)}] ⏱ 1MIN | ${item.note} | ${item.speedKmh.toFixed(1)} km/h | (${item.lat.toFixed(5)}, ${item.lng.toFixed(5)}) | total ${item.totalDistanceKm.toFixed(3)} km</div>`;
+          }
+
+          return `<div class="log-entry ${cls}">[${formatDate(item.timestamp)}] ${item.type} | ${item.details}${item.lat != null ? ` | (${item.lat.toFixed(5)}, ${item.lng.toFixed(5)})` : ""}${item.speedKmh != null ? ` | ${item.speedKmh.toFixed(1)} km/h` : ""}</div>`;
+        }).join("");
+
+        els.eventLog.scrollTop = els.eventLog.scrollHeight;
+        els.logChip.textContent = `Minute logs: ${state.minuteLogs.length}`;
+      }
+
+      function updateUI() {
+        els.speedDisplay.textContent = Math.round(state.currentSpeedKmh).toString();
+        els.distanceValue.textContent = `${state.totalDistanceKm.toFixed(2)} km`;
+        const avg = state.movingSamples ? state.totalMovingSpeed / state.movingSamples : 0;
+        els.avgValue.textContent = `${avg.toFixed(1)} km/h`;
+        els.topValue.textContent = `${state.topSpeedKmh.toFixed(1)} km/h`;
+
+        const now = Date.now();
+        if (state.startedAt) {
+          const end = state.tracking ? now : (state.endedAt || now);
+          const elapsed = end - state.startedAt;
+          els.durationValue.textContent = formatTime(elapsed);
+          els.tripClock.textContent = formatTime(elapsed);
+        } else {
+          els.durationValue.textContent = "00:00:00";
+          els.tripClock.textContent = "00:00:00";
+        }
+
+        if (state.lastLocation) {
+          els.coordChip.textContent = `Lat: ${state.lastLocation.lat.toFixed(5)}, Lng: ${state.lastLocation.lng.toFixed(5)}`;
+          els.accuracyChip.textContent = `Accuracy: ±${Math.round(state.lastLocation.accuracy || 0)}m`;
+        }
+
+        els.btnStartStop.textContent = state.tracking ? "STOP" : "START";
+        els.btnStartStop.style.boxShadow = state.tracking
+          ? "0 0 0 3px rgba(255,69,58,0.33), 0 14px 22px rgba(0,0,0,0.6)"
+          : "0 0 0 3px rgba(255,255,255,0.14), 0 14px 22px rgba(0,0,0,0.6)";
+
+        els.gpsDot.classList.toggle("live", state.tracking);
+        els.gpsBadge.innerHTML = `<span class="dot ${state.tracking ? "live" : ""}"></span> GPS: ${state.tracking ? "tracking" : "idle"}`;
+
+        els.leftStatus.textContent = state.tracking ? "Trip in progress" : "Ready";
+        els.rightStatus.textContent = state.isStopped ? "Vehicle stopped" : "Black Box v1.0";
+
+        els.btnWake.classList.toggle("active", state.wakeLockEnabled);
+        els.btnSound.classList.toggle("active", state.soundEnabled);
+        els.btnTheme.classList.toggle("active", state.darkMapEnabled);
+      }
+
+      function setMapTheme(dark) {
+        state.darkMapEnabled = !!dark;
+        if (dark) {
+          if (map.hasLayer(lightTile)) map.removeLayer(lightTile);
+          darkTile.addTo(map);
+          els.btnTheme.textContent = "🌙 AMOLED";
+        } else {
+          if (map.hasLayer(darkTile)) map.removeLayer(darkTile);
+          lightTile.addTo(map);
+          els.btnTheme.textContent = "☀ Light";
+        }
+        persist();
+        updateUI();
+      }
+
+      function initMap() {
+        map = L.map("map", { zoomControl: true, preferCanvas: true }).setView([20.5937, 78.9629], 5);
+
+        lightTile = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 19,
+          attribution: "© OpenStreetMap contributors",
+        });
+
+        darkTile = L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+          maxZoom: 20,
+          attribution: "© OpenStreetMap © CARTO",
+        });
+
+        routeLine = L.polyline([], {
+          color: "#4c8dff",
+          weight: 6,
+          opacity: 0.95,
+          lineJoin: "round",
+          lineCap: "round",
+        }).addTo(map);
+
+        marker = L.circleMarker([20.5937, 78.9629], {
+          radius: 8,
+          color: "#ff3b30",
+          fillColor: "#ff3b30",
+          fillOpacity: 0.95,
+          weight: 2,
+        }).addTo(map);
+
+        setMapTheme(true);
+      }
+
+      function requestFullscreen() {
+        const el = document.documentElement;
+        if (!document.fullscreenElement && el.requestFullscreen) {
+          return el.requestFullscreen().then(() => {
+            els.btnFullscreen.classList.add("active");
+            toast("Fullscreen enabled.");
+          }).catch(() => toast("Fullscreen blocked by browser."));
+        }
+        if (document.fullscreenElement && document.exitFullscreen) {
+          return document.exitFullscreen().then(() => {
+            els.btnFullscreen.classList.remove("active");
+            toast("Exited fullscreen.");
+          });
+        }
+      }
+
+      async function requestWakeLock() {
+        if (!("wakeLock" in navigator)) {
+          toast("Wake Lock API not supported.");
+          return;
+        }
+        try {
+          state.wakeLock = await navigator.wakeLock.request("screen");
+          state.wakeLockEnabled = true;
+          state.wakeLock.addEventListener("release", () => {
+            state.wakeLockEnabled = false;
+            updateUI();
+          });
+          updateUI();
+          toast("Screen wake lock active.");
+        } catch {
+          toast("Could not acquire wake lock.");
+        }
+      }
+
+      async function releaseWakeLock() {
+        if (state.wakeLock) {
+          try { await state.wakeLock.release(); } catch {}
+          state.wakeLock = null;
+        }
+        state.wakeLockEnabled = false;
+        updateUI();
+      }
+
+      function initAudio() {
+        if (audio.ctx) return;
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) {
+          toast("Web Audio not supported.");
+          return;
+        }
+        audio.ctx = new Ctx();
+        audio.master = audio.ctx.createGain();
+        audio.master.gain.value = 0.22;
+        audio.master.connect(audio.ctx.destination);
+
+        audio.humOsc = audio.ctx.createOscillator();
+        audio.humOsc.type = "sawtooth";
+        audio.humOsc.frequency.value = 36;
+
+        audio.humGain = audio.ctx.createGain();
+        audio.humGain.gain.value = 0.0;
+
+        audio.humOsc.connect(audio.humGain);
+        audio.humGain.connect(audio.master);
+        audio.humOsc.start();
+      }
+
+      function playThump(freq = 80, amp = 0.2) {
+        if (!audio.ctx || !state.soundEnabled) return;
+
+        const t = audio.ctx.currentTime;
+        const osc = audio.ctx.createOscillator();
+        const osc2 = audio.ctx.createOscillator();
+        const g = audio.ctx.createGain();
+
+        osc.type = "triangle";
+        osc2.type = "square";
+        osc.frequency.setValueAtTime(freq, t);
+        osc2.frequency.setValueAtTime(freq * 0.5, t);
+
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(Math.max(0.01, amp), t + 0.015);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+
+        osc.connect(g);
+        osc2.connect(g);
+        g.connect(audio.master);
+
+        osc.start(t);
+        osc2.start(t);
+        osc.stop(t + 0.18);
+        osc2.stop(t + 0.18);
+      }
+
+      function syncEngineSound() {
+        if (!audio.ctx) return;
+
+        if (!state.soundEnabled || !state.tracking) {
+          clearInterval(audio.pulseTimer);
+          audio.pulseTimer = null;
+          audio.humGain.gain.setTargetAtTime(0.0001, audio.ctx.currentTime, 0.08);
+          return;
+        }
+
+        const speed = Math.max(0, state.currentSpeedKmh);
+        const rpm = 700 + speed * 70;
+        const pulseMs = Math.max(140, 900 - speed * 9);
+        const humFreq = Math.min(140, 30 + speed * 1.8);
+        const humAmp = Math.min(0.2, 0.04 + speed * 0.003);
+
+        audio.humOsc.frequency.setTargetAtTime(humFreq, audio.ctx.currentTime, 0.06);
+        audio.humGain.gain.setTargetAtTime(humAmp, audio.ctx.currentTime, 0.06);
+
+        if (audio._lastPulse !== pulseMs) {
+          clearInterval(audio.pulseTimer);
+          audio.pulseTimer = setInterval(() => {
+            const thumpFreq = 55 + (rpm / 60);
+            const thumpAmp = Math.min(0.34, 0.12 + speed * 0.004);
+            playThump(thumpFreq, thumpAmp);
+          }, pulseMs);
+          audio._lastPulse = pulseMs;
+        }
+      }
+
+      function onPosition(position) {
+        const c = position.coords;
+        const point = {
+          lat: c.latitude,
+          lng: c.longitude,
+          accuracy: c.accuracy,
+          timestamp: position.timestamp || Date.now(),
+          rawSpeed: c.speed,
+        };
+
+        let speedKmh = Number.isFinite(c.speed) && c.speed >= 0 ? c.speed * 3.6 : null;
+
+        const prev = state.points[state.points.length - 1];
+        if (prev) {
+          const segKm = haversineKm(prev.lat, prev.lng, point.lat, point.lng);
+          const dtH = Math.max(1, (point.timestamp - prev.timestamp)) / 3600000;
+          const calcSpeed = segKm / dtH;
+          if (speedKmh == null || !Number.isFinite(speedKmh)) {
+            speedKmh = calcSpeed;
+          }
+          if (segKm < 0.25) state.totalDistanceKm += segKm;
+        } else {
+          speedKmh = speedKmh ?? 0;
+        }
+
+        speedKmh = Math.max(0, Math.min(320, speedKmh || 0));
+
+        point.speedKmh = speedKmh;
+        state.lastLocation = point;
+        state.points.push(point);
+        if (state.points.length > 10000) state.points.shift();
+
+        state.currentSpeedKmh = speedKmh;
+        if (speedKmh > state.topSpeedKmh) state.topSpeedKmh = speedKmh;
+        if (speedKmh > 1) {
+          state.totalMovingSpeed += speedKmh;
+          state.movingSamples += 1;
+        }
+
+        const latlngs = state.points.map(p => [p.lat, p.lng]);
+        routeLine.setLatLngs(latlngs);
+        marker.setLatLng([point.lat, point.lng]);
+
+        if (state.mapFollow) map.setView([point.lat, point.lng], Math.max(map.getZoom(), 16));
+
+        const stoppedNow = speedKmh <= STOP_THRESHOLD_KMH;
+        if (stoppedNow && !state.isStopped) {
+          state.isStopped = true;
+          addEvent("STOP", "Vehicle halted", point.lat, point.lng, speedKmh);
+        } else if (!stoppedNow && state.isStopped) {
+          state.isStopped = false;
+          addEvent("RESUME", "Vehicle resumed motion", point.lat, point.lng, speedKmh);
+        }
+
+        updateUI();
+        persist();
+        syncEngineSound();
+      }
+
+      function onPositionError(err) {
+        addEvent("GPS_ERROR", `${err.message || "Unknown geolocation error"}`);
+        toast(`GPS error: ${err.message || "unknown"}`);
+      }
+
+      function startTracking() {
+        if (!navigator.geolocation) {
+          toast("Geolocation unsupported.");
+          return;
+        }
+        if (state.tracking) return;
+
+        state.tracking = true;
+        state.startedAt = state.startedAt || Date.now();
+        state.endedAt = null;
+        state.mapFollow = true;
+
+        state.watchId = navigator.geolocation.watchPosition(onPosition, onPositionError, {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: 15000,
+        });
+
+        state.minuteTimer = setInterval(addMinuteLog, 60000);
+        addEvent("START", "Trip started");
+        addMinuteLog();
+
+        requestWakeLock();
+        updateUI();
+        renderLog();
+        persist();
+        syncEngineSound();
+        toast("Tracking started.");
+      }
+
+      function stopTracking() {
+        if (!state.tracking) return;
+        state.tracking = false;
+        state.endedAt = Date.now();
+
+        if (state.watchId != null) {
+          navigator.geolocation.clearWatch(state.watchId);
+          state.watchId = null;
+        }
+        clearInterval(state.minuteTimer);
+        state.minuteTimer = null;
+
+        addMinuteLog();
+        addEvent("END", "Trip stopped", state.lastLocation?.lat ?? null, state.lastLocation?.lng ?? null, state.currentSpeedKmh);
+        releaseWakeLock();
+        syncEngineSound();
+        updateUI();
+        persist();
+        toast("Tracking stopped.");
+      }
+
+      function resetSession() {
+        stopTracking();
+        state.currentSpeedKmh = 0;
+        state.topSpeedKmh = 0;
+        state.totalDistanceKm = 0;
+        state.totalMovingSpeed = 0;
+        state.movingSamples = 0;
+        state.points = [];
+        state.minuteLogs = [];
+        state.events = [];
+        state.isStopped = false;
+        state.startedAt = null;
+        state.endedAt = null;
+        state.lastLocation = null;
+        routeLine.setLatLngs([]);
+        renderLog();
+        updateUI();
+        persist();
+        toast("Session reset.");
+      }
+
+      function exportBlackBox() {
+        const started = state.startedAt ? formatDate(state.startedAt) : "N/A";
+        const ended = state.endedAt ? formatDate(state.endedAt) : (state.tracking ? "Running" : "N/A");
+        const durationMs = state.startedAt
+          ? ((state.tracking ? Date.now() : (state.endedAt || Date.now())) - state.startedAt)
+          : 0;
+
+        const avg = state.movingSamples ? state.totalMovingSpeed / state.movingSamples : 0;
+
+        const all = [
+          ...state.events.map(e => ({ ...e, kind: "EVENT" })),
+          ...state.minuteLogs.map(m => ({ ...m, kind: "MINUTE" })),
+        ].sort((a, b) => a.timestamp - b.timestamp);
+
+        const lines = [];
+        lines.push("════════════════════════════════════════════════════════════");
+        lines.push("                TRIP TRACKER BLACK BOX REPORT");
+        lines.push("════════════════════════════════════════════════════════════");
+        lines.push(`Generated At     : ${formatDate(Date.now())}`);
+        lines.push(`Trip Start       : ${started}`);
+        lines.push(`Trip End         : ${ended}`);
+        lines.push(`Duration         : ${formatTime(durationMs)}`);
+        lines.push(`Total Distance   : ${state.totalDistanceKm.toFixed(3)} km`);
+        lines.push(`Average Speed    : ${avg.toFixed(2)} km/h`);
+        lines.push(`Top Speed        : ${state.topSpeedKmh.toFixed(2)} km/h`);
+        lines.push(`Total GPS Points : ${state.points.length}`);
+        lines.push(`1-Minute Logs    : ${state.minuteLogs.length}`);
+        lines.push(`Events Logged    : ${state.events.length}`);
+        lines.push("════════════════════════════════════════════════════════════");
+        lines.push("CHRONOLOGICAL TIMELINE");
+        lines.push("════════════════════════════════════════════════════════════");
+
+        if (!all.length) {
+          lines.push("No entries available.");
+        } else {
+          all.forEach((item, i) => {
+            const idx = String(i + 1).padStart(4, "0");
+            if (item.kind === "MINUTE") {
+              lines.push(
+                `${idx} | ${formatDate(item.timestamp)} | 1-MINUTE SNAPSHOT | ${item.note.padEnd(7)} | Speed ${item.speedKmh.toFixed(2).padStart(6)} km/h | ` +
+                `Lat ${item.lat.toFixed(6)}, Lng ${item.lng.toFixed(6)} | TotalDist ${item.totalDistanceKm.toFixed(3)} km`
+              );
+            } else {
+              lines.push(
+                `${idx} | ${formatDate(item.timestamp)} | EVENT ${item.type.padEnd(8)} | ${item.details}` +
+                `${item.lat != null ? ` | Lat ${item.lat.toFixed(6)}, Lng ${item.lng.toFixed(6)}` : ""}` +
+                `${item.speedKmh != null ? ` | Speed ${item.speedKmh.toFixed(2)} km/h` : ""}`
+              );
+            }
+          });
+        }
+
+        lines.push("════════════════════════════════════════════════════════════");
+        lines.push("END OF REPORT");
+        lines.push("════════════════════════════════════════════════════════════");
+
+        const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `trip_blackbox_${new Date().toISOString().replace(/[:.]/g, "-")}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          URL.revokeObjectURL(a.href);
+          a.remove();
+        }, 0);
+
+        toast("Black Box .txt exported.");
+      }
+
+      function bindEvents() {
+        els.btnStartStop.addEventListener("click", async () => {
+          if (!document.fullscreenElement) requestFullscreen();
+          if (!audio.ctx) initAudio();
+          if (audio.ctx && audio.ctx.state === "suspended") {
+            try { await audio.ctx.resume(); } catch {}
+          }
+          state.tracking ? stopTracking() : startTracking();
+        });
+
+        els.btnExport.addEventListener("click", exportBlackBox);
+
+        els.btnTheme.addEventListener("click", () => {
+          setMapTheme(!state.darkMapEnabled);
+          toast(state.darkMapEnabled ? "AMOLED map enabled." : "Light map enabled.");
+        });
+
+        els.btnCenter.addEventListener("click", () => {
+          state.mapFollow = true;
+          if (state.lastLocation) {
+            map.setView([state.lastLocation.lat, state.lastLocation.lng], 17);
+            toast("Map centered.");
+          }
+        });
+
+        map?.on("dragstart", () => {
+          state.mapFollow = false;
+        });
+
+        els.btnWake.addEventListener("click", async () => {
+          if (state.wakeLockEnabled) {
+            await releaseWakeLock();
+            toast("Wake lock released.");
+          } else {
+            await requestWakeLock();
+          }
+        });
+
+        els.btnSound.addEventListener("click", async () => {
+          if (!audio.ctx) initAudio();
+          if (!audio.ctx) return;
+          if (audio.ctx.state === "suspended") {
+            try { await audio.ctx.resume(); } catch {}
+          }
+
+          state.soundEnabled = !state.soundEnabled;
+          syncEngineSound();
+          updateUI();
+          persist();
+          toast(state.soundEnabled ? "Engine audio ON." : "Engine audio OFF.");
+        });
+
+        els.btnFullscreen.addEventListener("click", requestFullscreen);
+
+        els.eventLog.addEventListener("dblclick", resetSession);
+
+        document.addEventListener("visibilitychange", () => {
+          if (document.visibilityState === "visible" && state.wakeLockEnabled) {
+            requestWakeLock();
+          }
+        });
+      }
+
+      function boot() {
+        initMap();
+        bindEvents();
+        restore();
+        updateUI();
+        renderLog();
+
+        uiTicker = setInterval(updateUI, 1000);
+        setTimeout(() => {
+          requestFullscreen();
+        }, 700);
+
+        addEvent("SYSTEM", "Tracker boot completed");
+      }
+
+      window.addEventListener("beforeunload", () => {
+        persist();
+      });
+
+      boot();
+    })();
+  </script>
+</body>
+</html>
